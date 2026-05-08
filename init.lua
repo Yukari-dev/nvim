@@ -12,20 +12,21 @@ require("lazy").setup({
     { "folke/tokyonight.nvim" },
     { "rose-pine/neovim", name = "rose-pine" },
     { "nyoom-engineering/oxocarbon.nvim" },
+    { "vyfor/cord.nvim" },
 
-    { "lewis6991/gitsigns.nvim",
-        config = function()
-            require("gitsigns").setup({
-                signs = {
-                    add          = { text = "│" },
-                    change       = { text = "│" },
-                    delete       = { text = "−" },
-                    topdelete    = { text = "−" },
-                    changedelete = { text = "~" },
-                },
-            })
-        end,
-    },
+    -- { "lewis6991/gitsigns.nvim",
+    --     config = function()
+    --         require("gitsigns").setup({
+    --             signs = {
+    --                 add          = { text = "│" },
+    --                 change       = { text = "│" },
+    --                 delete       = { text = "−" },
+    --                 topdelete    = { text = "−" },
+    --                 changedelete = { text = "~" },
+    --             },
+    --         })
+    --     end,
+    -- },
     { "echasnovski/mini.pairs", version = "*",
         config = function()
             require("mini.pairs").setup()
@@ -90,16 +91,10 @@ require("lazy").setup({
             vim.keymap.set("n", "<leader>r", vim.lsp.buf.rename)
             vim.keymap.set("n", "<leader>a", vim.lsp.buf.code_action)
 
-            vim.diagnostic.config({
-                virtual_text = true,
-                signs = true,
-                underline = true,
-            })
         end,
     },
 
 })
-
 
 vim.api.nvim_create_autocmd("ColorScheme", {
     pattern = "*",
@@ -192,3 +187,126 @@ vim.opt.shiftwidth = 4
 vim.opt.expandtab = true
 vim.opt.clipboard = "unnamedplus"
 vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]])
+vim.diagnostic.config({
+    virtual_text = false,
+    signs = false,
+    underline = false,
+})
+
+
+local function createHeader(opts)
+    local isHeader = false
+    local isC = false
+    for i, value in ipairs(opts.fargs) do
+        if isHeader and not isC and value then
+            local fileName = value
+            
+            vim.cmd('tabe include/' .. fileName .. ".h")
+            
+            local defName = string.upper(fileName) .. "_H"
+            local lines = {
+                "#ifndef " .. defName,
+                "#define " .. defName,
+                "",
+                "#endif"
+            }
+            
+            vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+            
+            vim.cmd('write')
+            
+            isHeader = false
+        elseif isC and not isHeader and value then
+            local fileName = value
+            
+            vim.cmd('tabe src/' .. fileName .. ".c")
+            
+            local lines = {
+                "#include \"" .. fileName .. ".h\"",
+                "\n",
+            }
+            
+            vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+            
+            vim.cmd('write')
+            
+            isC = false
+        elseif isC and isHeader and value then
+
+            local fileName = value
+            
+            vim.cmd('tabe include/' .. fileName .. ".h")
+            
+            local defName = string.upper(fileName) .. "_H"
+            local lines = {
+                "#ifndef " .. defName,
+                "#define " .. defName,
+                "",
+                "#endif"
+            }
+            
+            vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+            
+            vim.cmd('write')
+            
+            vim.cmd('tabe src/' .. fileName .. ".c")
+            
+            local lines2 = {
+                "#include \"" .. fileName .. ".h\"",
+                "\n",
+            }
+            
+            vim.api.nvim_buf_set_lines(0, 0, -1, false, lines2)
+            
+            vim.cmd('write')
+            
+            isC = false
+            isHeader = false
+        end
+
+        if value == "header" then
+            isHeader = true
+            isC = false
+        elseif value == "headerAndC" then
+            isHeader = true
+            isC = true
+        elseif value == "C" then
+            isHeader = false
+            isC = true
+        end
+    end
+end
+
+
+-- -------- CUSTOM COMMAND -----------
+vim.api.nvim_create_user_command(
+    'Create',
+    createHeader,
+    { desc = 'Create header files', nargs = '+' }
+)
+
+vim.api.nvim_create_user_command(
+    'Ch',
+    createHeader,
+    { desc = 'Create header files', nargs = '+' }
+)
+
+vim.api.nvim_create_user_command(
+    'Config',
+    'edit $MYVIMRC', {}
+)
+
+local function makeProject(opts)
+    for _, projectName in ipairs(opts.fargs) do
+        local path = "programming/C/" .. projectName
+        local mainFile = path .. "/src/main.c"
+
+        os.execute("mkdir -p " .. path .. "/src " .. path .. "/include")
+
+        local content = "#include <stdio.h>\\n\\nint main(){\\n    printf(\\\"Hello world\\\\n\\\");\\n    return 0;\\n}"
+        os.execute("printf '" .. content .. "' > " .. mainFile)
+    end
+end
+
+vim.api.nvim_create_user_command('Pr', makeProject, {nargs = '+'})
+
